@@ -13,9 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($username === '' || $password === '') {
-        $error = 'Please enter both username and password.';
+        $error = 'Please enter both identifier and password.';
     } elseif (login($username, $password)) {
-        header('Location: dashboard.php');
+        if ($_SESSION['user']['role'] === 'teacher') {
+            header('Location: teacher_portal.php');
+        } elseif ($_SESSION['user']['role'] === 'student') {
+            header('Location: student_portal.php');
+        } elseif ($_SESSION['user']['role'] === 'parent') {
+            header('Location: parent_dashboard.php');
+        } else {
+            header('Location: dashboard.php');
+        }
         exit;
     } else {
         $error = 'Invalid username or password.';
@@ -52,9 +60,9 @@ $pageTitle = 'Login';
 
             <form id="loginForm" method="post" autocomplete="off">
                 <div class="form-floating mb-3">
-                    <input type="text" name="username" id="username" class="form-control" placeholder="Username" required autofocus>
+                    <input type="text" name="username" id="username" class="form-control" placeholder="Student ID / Email / Username" required autofocus>
                     <label for="username">
-                        <i class="fas fa-user me-2"></i>Username
+                        <i class="fas fa-user me-2"></i>Student ID / Email / Username
                     </label>
                 </div>
                 <div class="form-floating mb-4">

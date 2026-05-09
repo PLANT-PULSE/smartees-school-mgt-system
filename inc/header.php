@@ -52,12 +52,22 @@ $user = currentUser();
                             <span>Students</span>
                         </a>
                     </li>
+                    <?php if ($user['role'] === 'teacher'): ?>
+                    <li class="nav-item nav-item-animated">
+                        <a class="nav-link nav-link-custom" href="teacher_portal.php">
+                            <i class="fas fa-chalkboard-teacher me-2"></i>
+                            <span>Teacher Portal</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    <?php if (!($hideTeacherPortalNav ?? false)): ?>
                     <li class="nav-item nav-item-animated">
                         <a class="nav-link nav-link-custom" href="teachers.php">
                             <i class="fas fa-chalkboard-teacher me-2"></i>
                             <span>Teachers</span>
                         </a>
                     </li>
+                    <?php endif; ?>
                     <li class="nav-item nav-item-animated">
                         <a class="nav-link nav-link-custom" href="classes.php">
                             <i class="fas fa-school me-2"></i>
@@ -76,6 +86,35 @@ $user = currentUser();
                             <span>Grades</span>
                         </a>
                     </li>
+                    <?php if ($user['role'] === 'admin'): ?>
+                        <li class="nav-item nav-item-animated">
+                            <a class="nav-link nav-link-custom" href="security_portal.php">
+                                <i class="fas fa-shield-alt me-2"></i>
+                                <span>Security Portal</span>
+                            </a>
+                        </li>
+                        <li class="nav-item nav-item-animated">
+                            <a class="nav-link nav-link-custom" href="admin_student_portal.php">
+                                <i class="fas fa-user-graduate me-2"></i>
+                                <span>Student Portal Admin</span>
+                            </a>
+                        </li>
+                        <li class="nav-item nav-item-animated">
+                            <a class="nav-link nav-link-custom" href="fees_section.php">
+                                <i class="fas fa-money-check-alt me-2"></i>
+                                <span>Fees Section</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <?php if (isset($user) && $user['role'] === 'student'): ?>
+                    <li class="nav-item nav-item-animated">
+                        <a class="nav-link nav-link-custom" href="student_portal.php">
+                            <i class="fas fa-user-graduate me-2"></i>
+                            <span>Student Portal</span>
+                        </a>
+                    </li>
                 <?php endif; ?>
 
                 <!-- Grades Report (Admin, Teacher, Parent) -->
@@ -88,14 +127,16 @@ $user = currentUser();
                     </li>
                 <?php endif; ?>
 
-                <!-- Admin/Teacher Fees & Enrollment -->
-                <?php if (isset($user) && in_array($user['role'], ['admin', 'teacher'])): ?>
+                <!-- Admin/Teacher Enrollment -->
+                <?php if (isset($user) && in_array($user['role'], ['admin', 'teacher']) && !($hideTeacherPortalNav ?? false)): ?>
+                    <?php if ($user['role'] === 'admin'): ?>
                     <li class="nav-item nav-item-animated">
                         <a class="nav-link nav-link-custom" href="fees.php">
                             <i class="fas fa-dollar-sign me-2"></i>
                             <span>Fees</span>
                         </a>
                     </li>
+                    <?php endif; ?>
                     <li class="nav-item nav-item-animated">
                         <a class="nav-link nav-link-custom" href="enrollment.php">
                             <i class="fas fa-user-plus me-2"></i>

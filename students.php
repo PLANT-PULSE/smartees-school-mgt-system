@@ -10,6 +10,190 @@ $pdo = getDb();
 $action = $_GET['action'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Handle Excel import
+    if (isset($_POST['import_excel'])) {
+        if (!isset($_FILES['excel_file']) || $_FILES['excel_file']['error'] !== UPLOAD_ERR_OK) {
+            flash('error', 'Please select a valid Excel file.');
+            redirect('students.php');
+        }
+
+        $file = $_FILES['excel_file'];
+        $fileType = $file['type'];
+        $fileName = $file['name'];
+
+        // Validate file type
+        $allowedTypes = [
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel.sheet.macroEnabled.12',
+            'text/csv',
+            'application/csv',
+            'text/plain'
+        ];
+
+        if (!in_array($fileType, $allowedTypes) && !preg_match('/\.(xls|xlsx|xlsm|csv)$/i', $fileName)) {
+            flash('error', 'Please upload a valid Excel or CSV file (.xls, .xlsx, .xlsm, or .csv).');
+            redirect('students.php');
+        }
+
+        // Validate file size (max 10MB)
+        if ($file['size'] > 10 * 1024 * 1024) {
+            flash('error', 'File size must be less than 10MB.');
+            redirect('students.php');
+        }
+
+        try {
+            $rows = [];
+
+            if (preg_match('/\.(xls|xlsx|xlsm)$/i', $fileName)) {
+                // Try to use PhpSpreadsheet for Excel files
+                if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+                    require_once __DIR__ . '/vendor/autoload.php';
+                    if (class_exists('\PhpOffice\PhpSpreadsheet\IOFactory')) {
+                        try {
+                            // @phpstan-ignore-next-line
+                            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file['tmp_name']);
+                            $worksheet = $spreadsheet->getActiveSheet();
+                            $rows = $worksheet->toArray();
+                        } catch (Exception $e) {
+                            flash('error', 'Failed to read Excel file: ' . $e->getMessage() . '. Please use CSV format instead.');
+                            redirect('students.php');
+                        }
+                    } else {
+                        flash('error', 'Excel file support requires PhpSpreadsheet library. Please use CSV format instead.');
+                        redirect('students.php');
+                    }
+                } else {
+                    flash('error', 'Excel file support requires PhpSpreadsheet library. Please use CSV format instead.');
+                    redirect('students.php');
+                }
+            } elseif (preg_match('/\.(csv)$/i', $fileName)) {
+                // Handle CSV files
+                $handle = fopen($file['tmp_name'], 'r');
+                if ($handle === false) {
+                    flash('error', 'Unable to read CSV file.');
+                    redirect('students.php');
+                }
+
+                while (($row = fgetcsv($handle)) !== false) {
+                    $rows[] = $row;
+                }
+                fclose($handle);
+            } else {
+                flash('error', 'Unsupported file format. Please upload .xls, .xlsx, .xlsm, or .csv files.');
+                redirect('students.php');
+            }
+
+            if (empty($rows) || count($rows) < 2) {
+                flash('error', 'File must contain at least a header row and one data row.');
+                redirect('students.php');
+            }
+
+            // Get header row
+            $headers = array_map('strtolower', array_map('trim', $rows[0]));
+            $requiredHeaders = ['name'];
+            $optionalHeaders = ['age', 'contact', 'class'];
+
+            // Validate headers
+            foreach ($requiredHeaders as $required) {
+                if (!in_array($required, $headers)) {
+                    flash('error', "Required column '$required' not found. Headers found: " . implode(', ', $headers));
+                    redirect('students.php');
+                }
+            }
+
+            // Map column indices
+            $columnMap = [];
+            foreach ($headers as $index => $header) {
+                $columnMap[$header] = $index;
+            }
+
+            // Get classes for lookup
+            $classMap = [];
+            foreach ($classes as $class) {
+                $classMap[strtolower($class['name'])] = $class['id'];
+            }
+
+            $pdo->beginTransaction();
+            $imported = 0;
+            $errors = [];
+
+            // Process data rows
+            for ($i = 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+
+                // Skip empty rows
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+
+                $name = trim($row[$columnMap['name']] ?? '');
+                if (empty($name)) {
+                    $errors[] = "Row " . ($i + 1) . ": Name is required";
+                    continue;
+                }
+
+                $age = null;
+                if (isset($columnMap['age'])) {
+                    $ageValue = trim($row[$columnMap['age']] ?? '');
+                    if (!empty($ageValue) && is_numeric($ageValue)) {
+                        $age = intval($ageValue);
+                    }
+                }
+
+                $contact = trim($row[$columnMap['contact']] ?? '');
+                $classId = null;
+
+                if (isset($columnMap['class'])) {
+                    $className = trim($row[$columnMap['class']] ?? '');
+                    if (!empty($className)) {
+                        $classKey = strtolower($className);
+                        if (isset($classMap[$classKey])) {
+                            $classId = $classMap[$classKey];
+                        } else {
+                            $errors[] = "Row " . ($i + 1) . ": Class '$className' not found";
+                            continue;
+                        }
+                    }
+                }
+
+                try {
+                    // Check for duplicate student (same name and class)
+                    $stmt = $pdo->prepare('SELECT id FROM students WHERE name = ? AND class_id <=> ?');
+                    $stmt->execute([$name, $classId]);
+                    $existing = $stmt->fetch();
+
+                    if ($existing) {
+                        $errors[] = "Row " . ($i + 1) . ": Student '$name' already exists in this class";
+                        continue;
+                    }
+
+                    $stmt = $pdo->prepare('INSERT INTO students (name, age, contact, class_id) VALUES (?, ?, ?, ?)');
+                    $stmt->execute([$name, $age, $contact, $classId]);
+                    $imported++;
+                } catch (Exception $e) {
+                    $errors[] = "Row " . ($i + 1) . ": Failed to import '$name' - " . $e->getMessage();
+                }
+            }
+
+            $pdo->commit();
+
+            if ($imported > 0) {
+                flash('success', "Successfully imported $imported students.");
+            }
+
+            if (!empty($errors)) {
+                flash('error', 'Import completed with errors: ' . implode('; ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? ' ...and ' . (count($errors) - 5) . ' more' : ''));
+            }
+
+        } catch (Exception $e) {
+            flash('error', 'Failed to process file: ' . $e->getMessage());
+        }
+
+        redirect('students.php');
+    }
+
+    // Handle regular student add/edit
     $name = trim($_POST['name'] ?? '');
     $age = intval($_POST['age'] ?? 0);
     $contact = trim($_POST['contact'] ?? '');
@@ -103,6 +287,9 @@ if ($action === 'edit' && !empty($_GET['id'])) {
         <p class="text-muted mb-0">Manage student information and class assignments</p>
     </div>
     <div class="table-actions">
+        <button type="button" class="btn btn-success-custom me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+            <i class="fas fa-file-excel me-2"></i>Import from Excel
+        </button>
         <a href="students.php?action=add" class="btn btn-primary-custom">
             <i class="fas fa-plus me-2"></i>Add Student
         </a>
@@ -122,6 +309,89 @@ if ($action === 'edit' && !empty($_GET['id'])) {
         <?= htmlspecialchars($msg) ?>
     </div>
 <?php endif; ?>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">
+                    <i class="fas fa-file-excel me-2 text-success"></i>Import Students from Excel
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>File Format Requirements:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>First row should contain column headers</li>
+                            <li><strong>Required column:</strong> <code>name</code></li>
+                            <li><strong>Optional columns:</strong> <code>age</code>, <code>contact</code>, <code>class</code></li>
+                            <li>Class names must match existing classes exactly</li>
+                            <li>Supported formats: .xls, .xlsx, .xlsm, .csv</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="excel_file" class="form-label">
+                            <i class="fas fa-file-upload me-2"></i>Select File
+                        </label>
+                        <input type="file" class="form-control" id="excel_file" name="excel_file"
+                               accept=".xls,.xlsx,.xlsm,.csv" required>
+                        <div class="form-text">Maximum file size: 10MB</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-table me-2"></i>Sample Format
+                        </label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>name</th>
+                                        <th>age</th>
+                                        <th>contact</th>
+                                        <th>class</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>John Doe</td>
+                                        <td>16</td>
+                                        <td>john@example.com</td>
+                                        <td>Class 10A</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Jane Smith</td>
+                                        <td>15</td>
+                                        <td>555-0123</td>
+                                        <td>Class 9B</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2">
+                            <a href="sample_students.csv" class="btn btn-sm btn-outline-primary" download>
+                                <i class="fas fa-download me-2"></i>Download Sample CSV
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="submit" name="import_excel" class="btn btn-success">
+                        <i class="fas fa-upload me-2"></i>Import Students
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Add/Edit Form -->
 <?php if ($action === 'add' || $action === 'edit'): ?>

@@ -9,16 +9,17 @@ $pageTitle = 'Dashboard';
 $pdo = getDb();
 
 $counts = [];
-foreach (['students', 'teachers', 'classes', 'attendance'] as $table) {
+foreach (['students', 'classes', 'attendance'] as $table) {
     $stmt = $pdo->query("SELECT COUNT(*) AS cnt FROM $table");
     $counts[$table] = $stmt->fetchColumn();
 }
+$counts['teachers'] = 0; // Removed
 
 // Get recent activities (mock data for demo)
 $recentActivities = [
     ['type' => 'add', 'item' => 'New student', 'details' => 'Alice Johnson enrolled in Grade 1', 'time' => '2 hours ago'],
     ['type' => 'edit', 'item' => 'Class updated', 'details' => 'Mathematics class schedule changed', 'time' => '4 hours ago'],
-    ['type' => 'add', 'item' => 'Teacher added', 'details' => 'John Smith joined as Science teacher', 'time' => '1 day ago'],
+    ['type' => 'add', 'item' => 'Fee payment', 'details' => 'Parent paid tuition fees', 'time' => '1 day ago'],
     ['type' => 'delete', 'item' => 'Student removed', 'details' => 'Bob Martinez transferred to another school', 'time' => '2 days ago'],
 ];
 
@@ -51,14 +52,7 @@ $user = currentUser();
         <div class="stats-title">Students</div>
         <a href="/school/students.php" class="stretched-link" data-tooltip="View all students"></a>
     </div>
-    <div class="stats-card">
-        <div class="stats-icon teachers">
-            <i class="fas fa-chalkboard-teacher"></i>
-        </div>
-        <div class="stats-number counter" data-count="<?= $counts['teachers'] ?>">0</div>
-        <div class="stats-title">Teachers</div>
-        <a href="/school/teachers.php" class="stretched-link" data-tooltip="View all teachers"></a>
-    </div>
+
     <div class="stats-card">
         <div class="stats-icon classes">
             <i class="fas fa-school"></i>
@@ -85,10 +79,7 @@ $user = currentUser();
             <i class="fas fa-user-plus"></i>
             <span>Add Student</span>
         </a>
-        <a href="/school/teachers.php?action=add" class="action-btn" data-tooltip="Add a new teacher">
-            <i class="fas fa-user-tie"></i>
-            <span>Add Teacher</span>
-        </a>
+
         <a href="/school/classes.php?action=add" class="action-btn" data-tooltip="Create a new class">
             <i class="fas fa-plus-circle"></i>
             <span>Add Class</span>
@@ -100,6 +91,10 @@ $user = currentUser();
         <a href="/school/grades.php" class="action-btn" data-tooltip="Manage grades">
             <i class="fas fa-chart-line"></i>
             <span>View Grades</span>
+        </a>
+        <a href="/school/admin_student_portal.php" class="action-btn" data-tooltip="Manage student portal content">
+            <i class="fas fa-user-graduate"></i>
+            <span>Student Portal Admin</span>
         </a>
         <a href="/school/students.php" class="action-btn" data-tooltip="Search students">
             <i class="fas fa-search"></i>

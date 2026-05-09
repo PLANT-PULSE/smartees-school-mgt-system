@@ -412,49 +412,7 @@ class ParentService extends BaseService
 // TEACHER SERVICE
 // =================================================================
 
-class TeacherService extends BaseService
-{
-    protected string $table = 'teachers';
 
-    /**
-     * Get teacher with schedule
-     */
-    public function getTeacherWithSchedule(int $teacherId): ?array
-    {
-        $teacher = $this->getById($teacherId);
-        if (!$teacher) {
-            return null;
-        }
-
-        $stmt = $this->query(
-            "SELECT ts.*, c.name as class_name, s.name as subject_name, p.period_name, r.room_number 
-             FROM teacher_schedules ts 
-             JOIN classes c ON ts.class_id = c.id 
-             JOIN subjects s ON ts.subject_id = s.id 
-             JOIN schedule_periods p ON ts.period_id = p.id 
-             LEFT JOIN classroom_rooms r ON ts.room_id = r.id 
-             WHERE ts.teacher_id = ? AND ts.is_active = TRUE 
-             ORDER BY ts.day_of_week, p.start_time",
-            [$teacherId]
-        );
-        $teacher['schedule'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return $teacher;
-    }
-
-    /**
-     * Get teacher's classes
-     */
-    public function getTeacherClasses(int $teacherId): array
-    {
-        $stmt = $this->query(
-            "SELECT DISTINCT c.* FROM classes c 
-             WHERE c.teacher_id = ?",
-            [$teacherId]
-        );
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-}
 
 // =================================================================
 // SCHEDULE SERVICE

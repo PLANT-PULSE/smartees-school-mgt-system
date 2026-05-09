@@ -81,7 +81,7 @@ if (isset($_GET['ajax'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $teacherId = intval($_POST['teacher_id'] ?? 0);
+
 
     if ($name === '') {
         flash('error', 'Class name is required.');
@@ -89,12 +89,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!empty($_POST['id'])) {
-        $stmt = $pdo->prepare('UPDATE classes SET name = :name, teacher_id = :teacher_id WHERE id = :id');
-        $stmt->execute([':name' => $name, ':teacher_id' => $teacherId ?: null, ':id' => $_POST['id']]);
+        $stmt = $pdo->prepare('UPDATE classes SET name = :name WHERE id = :id');
+        $stmt->execute([':name' => $name, ':id' => $_POST['id']]);
         flash('success', 'Class updated.');
     } else {
-        $stmt = $pdo->prepare('INSERT INTO classes (name, teacher_id) VALUES (:name, :teacher_id)');
-        $stmt->execute([':name' => $name, ':teacher_id' => $teacherId ?: null]);
+        $stmt = $pdo->prepare('INSERT INTO classes (name) VALUES (:name)');
+        $stmt->execute([':name' => $name]);
         flash('success', 'Class added.');
     }
 
@@ -109,9 +109,9 @@ if ($action === 'delete' && !empty($_GET['id'])) {
     redirect('classes.php');
 }
 
-$teachers = $pdo->query('SELECT id, name FROM teachers ORDER BY name')->fetchAll();
 
-$classes = $pdo->query('SELECT c.*, t.name AS teacher_name FROM classes c LEFT JOIN teachers t ON t.id = c.teacher_id ORDER BY c.name')->fetchAll();
+
+$classes = $pdo->query('SELECT c.* FROM classes c ORDER BY c.name')->fetchAll();
 
 $editClass = null;
 if ($action === 'edit' && !empty($_GET['id'])) {
@@ -161,7 +161,7 @@ if ($action === 'edit' && !empty($_GET['id'])) {
                 <?= $action === 'edit' ? 'Edit Class' : 'Add New Class' ?>
             </h2>
             <p class="form-subtitle">
-                <?= $action === 'edit' ? 'Update class information and teacher assignment' : 'Create a new class and assign a teacher' ?>
+                <?= $action === 'edit' ? 'Update class information' : 'Create a new class' ?>
             </p>
         </div>
 
@@ -179,20 +179,7 @@ if ($action === 'edit' && !empty($_GET['id'])) {
                 <small class="text-muted">e.g., "Grade 10 - Mathematics", "English Literature"</small>
             </div>
 
-            <div class="form-group">
-                <label class="form-label" for="teacher_id">
-                    <i class="fas fa-chalkboard-teacher me-2"></i>Assign Teacher
-                </label>
-                <select class="form-control" id="teacher_id" name="teacher_id">
-                    <option value="">-- Unassigned --</option>
-                    <?php foreach ($teachers as $teacher): ?>
-                        <option value="<?= $teacher['id'] ?>" <?= ($editClass['teacher_id'] ?? '') == $teacher['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($teacher['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <small class="text-muted">Select a teacher to assign to this class</small>
-            </div>
+
 
             <?php if ($action === 'edit' && $editClass): ?>
                 <div class="form-group">
@@ -238,7 +225,7 @@ if ($action === 'edit' && !empty($_GET['id'])) {
                     <span class="input-group-text">
                         <i class="fas fa-search"></i>
                     </span>
-                    <input type="text" class="form-control search-input" placeholder="Search classes by name or teacher...">
+                    <input type="text" class="form-control search-input" placeholder="Search classes by name...">
                 </div>
             </div>
             <div class="col-md-4">
@@ -259,9 +246,7 @@ if ($action === 'edit' && !empty($_GET['id'])) {
                     <th data-sort="text">
                         <i class="fas fa-graduation-cap me-2"></i>Class Name
                     </th>
-                    <th>
-                        <i class="fas fa-chalkboard-teacher me-2"></i>Teacher
-                    </th>
+
                     <th>
                         <i class="fas fa-users me-2"></i>Students
                     </th>

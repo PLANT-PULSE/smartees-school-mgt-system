@@ -420,9 +420,7 @@ $user = currentUser();
             <a href="students.php" class="menu-item">
                 <i class="fas fa-list"></i>All Students
             </a>
-            <a href="enrollment.php" class="menu-item">
-                <i class="fas fa-user-plus"></i>Enrollment
-            </a>
+
             <a href="#" class="menu-item">
                 <i class="fas fa-file-import"></i>Import Students
             </a>
@@ -444,71 +442,42 @@ $user = currentUser();
         </div>
     </div>
 
-    <div class="menu-section">
-        <div class="menu-title" onclick="toggleMenu(this)">
-            <span><i class="fas fa-chalkboard-teacher me-2"></i>TEACHERS</span>
-            <i class="fas fa-chevron-down dropdown-arrow"></i>
-        </div>
-        <div class="menu-items">
-            <a href="teachers.php" class="menu-item">
-                <i class="fas fa-list"></i>All Teachers
-            </a>
-        </div>
-    </div>
 
-    <div class="menu-section">
-        <div class="menu-title" onclick="toggleMenu(this)">
-            <span><i class="fas fa-dollar-sign me-2"></i>FEES</span>
-            <i class="fas fa-chevron-down dropdown-arrow"></i>
-        </div>
-        <div class="menu-items">
-            <a href="fees.php" class="menu-item">
-                <i class="fas fa-money-bill"></i>Fee Management
-            </a>
-            <a href="#" class="menu-item">
-                <i class="fas fa-receipt"></i>Payment Records
-            </a>
-            <a href="financial.php" class="menu-item">
-                <i class="fas fa-chart-line"></i>Financial Report
-            </a>
-        </div>
-    </div>
 
-    <div class="menu-section">
-        <div class="menu-title" onclick="toggleMenu(this)">
-            <span><i class="fas fa-users me-2"></i>USERS</span>
-            <i class="fas fa-chevron-down dropdown-arrow"></i>
-        </div>
-        <div class="menu-items">
-            <a href="#" class="menu-item">
-                <i class="fas fa-user"></i>All Users
-            </a>
-            <a href="#" class="menu-item">
-                <i class="fas fa-user-plus"></i>Add User
-            </a>
-            <a href="#" class="menu-item">
-                <i class="fas fa-user-lock"></i>User Roles
-            </a>
-        </div>
-    </div>
 
-    <div class="menu-section">
-        <div class="menu-title" onclick="toggleMenu(this)">
-            <span><i class="fas fa-cog me-2"></i>SETTINGS</span>
-            <i class="fas fa-chevron-down dropdown-arrow"></i>
+
+    <?php if (isset($user) && ($user['role'] ?? '') === 'admin'): ?>
+
+    <?php endif; ?>
+
+    <?php if (isset($user) && ($user['role'] ?? '') === 'admin'): ?>
+        <div class="menu-section">
+            <div class="menu-title" onclick="toggleMenu(this)">
+                <span><i class="fas fa-cog me-2"></i>SETTINGS</span>
+                <i class="fas fa-chevron-down dropdown-arrow"></i>
+            </div>
+            <div class="menu-items">
+                <a href="#" class="menu-item">
+                    <i class="fas fa-sliders-h"></i>General Settings
+                </a>
+                <a href="security_portal.php" class="menu-item">
+                    <i class="fas fa-lock"></i>Security Portal
+                </a>
+                <a href="admin_student_portal.php" class="menu-item">
+                    <i class="fas fa-user-graduate"></i>Student Portal Admin
+                </a>
+                <a href="fees.php" class="menu-item">
+                    <i class="fas fa-dollar-sign"></i>Fees Management
+                </a>
+                <a href="fees_section.php" class="menu-item">
+                    <i class="fas fa-money-check-alt"></i>Fees Section
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="fas fa-bell"></i>Notifications
+                </a>
+            </div>
         </div>
-        <div class="menu-items">
-            <a href="#" class="menu-item">
-                <i class="fas fa-sliders-h"></i>General Settings
-            </a>
-            <a href="#" class="menu-item">
-                <i class="fas fa-lock"></i>Security
-            </a>
-            <a href="#" class="menu-item">
-                <i class="fas fa-bell"></i>Notifications
-            </a>
-        </div>
-    </div>
+    <?php endif; ?>
 
     <!-- Logout -->
     <div class="menu-section" style="margin-top: auto; border-top: 1px solid #404040; padding-top: 20px;">

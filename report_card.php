@@ -121,6 +121,27 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
     }
 }
 
+// Helper function for ordinal suffixes - DEFINED EARLY FOR USE IN HTML OUTPUT
+function getOrdinalSuffix($num) {
+    $lastDigit = $num % 10;
+    $lastTwoDigits = $num % 100;
+    
+    if ($lastTwoDigits >= 11 && $lastTwoDigits <= 13) {
+        return 'th';
+    }
+    
+    switch ($lastDigit) {
+        case 1:
+            return 'st';
+        case 2:
+            return 'nd';
+        case 3:
+            return 'rd';
+        default:
+            return 'th';
+    }
+}
+
 ?>
 <?php include __DIR__ . '/inc/sidebar-header.php'; ?>
 
@@ -306,12 +327,7 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
         <div class="row">
             <div class="col-md-4">
                 <label class="form-label"><i class="fas fa-graduation-cap me-2"></i>Class</label>
-                <select name="class_id" class="form-control" onchange="
-                    const url = new URL(window.location);
-                    url.searchParams.set('class_id', this.value);
-                    url.searchParams.delete('student_id');
-                    window.location = url.toString();
-                ">
+                <select id="classSelect" class="form-control">
                     <option value="">Choose a class...</option>
                     <?php foreach ($classes as $cls): ?>
                         <option value="<?= $cls['id'] ?>" <?= $cls['id'] == $selectedClass ? 'selected' : '' ?>>
@@ -322,12 +338,7 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
             </div>
             <div class="col-md-4">
                 <label class="form-label"><i class="fas fa-user me-2"></i>Student</label>
-                <select name="student_id" class="form-control" onchange="
-                    const url = new URL(window.location);
-                    url.searchParams.set('class_id', document.querySelector('select[name=class_id]').value);
-                    url.searchParams.set('student_id', this.value);
-                    window.location = url.toString();
-                ">
+                <select id="studentSelect" class="form-control">
                     <option value="">Choose a student...</option>
                     <?php foreach ($students as $student): ?>
                         <option value="<?= $student['id'] ?>" <?= $student['id'] == $selectedStudent ? 'selected' : '' ?>>
@@ -338,6 +349,22 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
             </div>
         </div>
     </div>
+
+    <script>
+        document.getElementById('classSelect').addEventListener('change', function(e) {
+            const url = new URL(window.location);
+            url.searchParams.set('class_id', this.value);
+            url.searchParams.delete('student_id');
+            window.location = url.toString();
+        });
+
+        document.getElementById('studentSelect').addEventListener('change', function(e) {
+            const url = new URL(window.location);
+            url.searchParams.set('class_id', document.getElementById('classSelect').value);
+            url.searchParams.set('student_id', this.value);
+            window.location = url.toString();
+        });
+    </script>
 
     <!-- Report Card -->
     <?php if ($selectedStudent && $studentInfo): ?>
@@ -454,10 +481,10 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
                 </div>
             </div>
         </div>
-    <?php elseif ($selectedClass): ?>
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            Select a student to view their report card.
+    <?php elseif ($selectedClass && empty($students)): ?>
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            No students enrolled in this class yet.
         </div>
     <?php else: ?>
         <div class="alert alert-info">
@@ -466,28 +493,5 @@ if ($selectedClass && $selectedStudent && !empty($subjects)) {
         </div>
     <?php endif; ?>
 </div>
-
-<?php 
-// Helper function for ordinal suffixes
-function getOrdinalSuffix($num) {
-    $lastDigit = $num % 10;
-    $lastTwoDigits = $num % 100;
-    
-    if ($lastTwoDigits >= 11 && $lastTwoDigits <= 13) {
-        return 'th';
-    }
-    
-    switch ($lastDigit) {
-        case 1:
-            return 'st';
-        case 2:
-            return 'nd';
-        case 3:
-            return 'rd';
-        default:
-            return 'th';
-    }
-}
-?>
 
 <?php include __DIR__ . '/inc/sidebar-footer.php'; ?>

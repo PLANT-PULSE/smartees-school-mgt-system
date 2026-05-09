@@ -72,7 +72,7 @@ if ($selectedClass) {
     </div>
 
     <!-- Summary Statistics -->
-    <?php if ($selectedClass): ?>
+    <?php if ($selectedClass && !empty($students)): ?>
         <?php
         // Calculate class-wide statistics
         $totalPresent = 0;
@@ -214,7 +214,7 @@ if ($selectedClass) {
             </div>
         </div>
 
-    <?php elseif ($selectedClass): ?>
+    <?php elseif ($selectedClass && empty($students)): ?>
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
             No students enrolled in this class yet.

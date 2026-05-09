@@ -291,23 +291,46 @@ document.addEventListener('DOMContentLoaded', function() {
         welcomeSection.innerHTML = `${greeting}, Welcome to School MVP!`;
     }
 
-    // Add smooth scrolling for anchor links
+    // Add smooth scrolling for in-page anchors only.
+    // Skip bootstrap toggles/dropdowns and bare "#" links used as UI triggers.
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            const target = document.querySelector(this.getAttribute('href'));
-            if (target) {
-                target.scrollIntoView({
-                    behavior: 'smooth'
-                });
+            const href = this.getAttribute('href');
+            if (!href || href === '#' || this.hasAttribute('data-bs-toggle')) {
+                return;
             }
+
+            const target = document.querySelector(href);
+            if (!target) {
+                return;
+            }
+
+            e.preventDefault();
+            target.scrollIntoView({
+                behavior: 'smooth'
+            });
         });
     });
 
-    // Add loading animation for page transitions
+    // Add loading animation for full page transitions only.
     const links = document.querySelectorAll('a[href]');
     links.forEach(link => {
         link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href') || '';
+            const isHashLink = href.startsWith('#');
+            const isUiToggle = this.hasAttribute('data-bs-toggle') || href === '#' || href.toLowerCase().startsWith('javascript:');
+            const isSamePageHash = isHashLink || this.href.split('#')[0] === window.location.href.split('#')[0];
+
+            if (isUiToggle || isSamePageHash) {
+                return;
+            }
+
+            // Student portal uses real page loads per section; do not delay navigation.
+            const path = this.pathname || '';
+            if (path.endsWith('student_portal.php')) {
+                return;
+            }
+
             if (this.hostname === window.location.hostname) {
                 e.preventDefault();
                 document.body.style.opacity = '0.5';

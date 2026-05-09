@@ -194,15 +194,7 @@ if ($selectedClass) {
         <div class="row">
             <div class="col-md-3">
                 <label class="form-label"><i class="fas fa-graduation-cap me-2"></i>Class/Department</label>
-                <select name="class_id" class="form-control" onchange="
-                    const url = new URL(window.location);
-                    url.searchParams.set('class_id', this.value);
-                    url.searchParams.set('view_type', document.querySelector('select[name=view_type]').value);
-                    if (document.querySelector('select[name=view_type]').value === 'monthly') {
-                        url.searchParams.set('month', document.getElementById('monthInput').value);
-                    }
-                    window.location = url.toString();
-                ">
+                <select id="classSelect" class="form-control">
                     <option value="">Choose a class...</option>
                     <?php foreach ($classes as $cls): ?>
                         <option value="<?= $cls['id'] ?>" <?= $cls['id'] == $selectedClass ? 'selected' : '' ?>>
@@ -214,19 +206,7 @@ if ($selectedClass) {
 
             <div class="col-md-3">
                 <label class="form-label"><i class="fas fa-calendar me-2"></i>View Type</label>
-                <select name="view_type" class="form-control" onchange="
-                    const url = new URL(window.location);
-                    url.searchParams.set('class_id', document.querySelector('select[name=class_id]').value);
-                    url.searchParams.set('view_type', this.value);
-                    if (this.value === 'monthly') {
-                        url.searchParams.set('month', document.getElementById('monthInput').value);
-                        url.searchParams.delete('semester_index');
-                    } else {
-                        url.searchParams.set('semester_index', 0);
-                        url.searchParams.delete('month');
-                    }
-                    window.location = url.toString();
-                ">
+                <select id="viewTypeSelect" class="form-control">
                     <option value="monthly" <?= $viewType === 'monthly' ? 'selected' : '' ?>>Monthly</option>
                     <option value="semester" <?= $viewType === 'semester' ? 'selected' : '' ?>>Semester</option>
                 </select>
@@ -235,24 +215,12 @@ if ($selectedClass) {
             <?php if ($viewType === 'monthly'): ?>
                 <div class="col-md-3">
                     <label class="form-label"><i class="fas fa-calendar-alt me-2"></i>Month</label>
-                    <input type="month" id="monthInput" class="form-control" value="<?= $selectedMonth ?>" onchange="
-                        const url = new URL(window.location);
-                        url.searchParams.set('class_id', document.querySelector('select[name=class_id]').value);
-                        url.searchParams.set('month', this.value);
-                        url.searchParams.set('view_type', 'monthly');
-                        window.location = url.toString();
-                    ">
+                    <input type="month" id="monthInput" class="form-control" value="<?= $selectedMonth ?>">
                 </div>
             <?php else: ?>
                 <div class="col-md-3">
                     <label class="form-label"><i class="fas fa-graduation-cap me-2"></i>Semester</label>
-                    <select class="form-control" onchange="
-                        const url = new URL(window.location);
-                        url.searchParams.set('class_id', document.querySelector('select[name=class_id]').value);
-                        url.searchParams.set('view_type', 'semester');
-                        url.searchParams.set('semester_index', this.value);
-                        window.location = url.toString();
-                    ">
+                    <select id="semesterSelect" class="form-control">
                         <option value="0">Semester 1</option>
                         <option value="1">Semester 2</option>
                         <option value="2">Semester 3</option>
@@ -268,6 +236,52 @@ if ($selectedClass) {
             </div>
         </div>
     </div>
+
+    <script>
+        function updateFilters() {
+            const baseUrl = new URL(window.location);
+            const classId = document.getElementById('classSelect').value;
+            const viewType = document.getElementById('viewTypeSelect').value;
+            
+            baseUrl.searchParams.set('class_id', classId);
+            baseUrl.searchParams.set('view_type', viewType);
+            
+            if (viewType === 'monthly') {
+                const month = document.getElementById('monthInput').value;
+                baseUrl.searchParams.set('month', month);
+                baseUrl.searchParams.delete('semester_index');
+            } else {
+                const semester = document.getElementById('semesterSelect').value;
+                baseUrl.searchParams.set('semester_index', semester);
+                baseUrl.searchParams.delete('month');
+            }
+            
+            window.location = baseUrl.toString();
+        }
+        
+        document.getElementById('classSelect').addEventListener('change', updateFilters);
+        document.getElementById('viewTypeSelect').addEventListener('change', function() {
+            // Reload to show/hide month or semester selector
+            const baseUrl = new URL(window.location);
+            baseUrl.searchParams.set('class_id', document.getElementById('classSelect').value);
+            baseUrl.searchParams.set('view_type', this.value);
+            if (this.value === 'monthly') {
+                baseUrl.searchParams.set('month', document.getElementById('monthInput')?.value || new Date().toISOString().substring(0, 7));
+                baseUrl.searchParams.delete('semester_index');
+            } else {
+                baseUrl.searchParams.set('semester_index', 0);
+                baseUrl.searchParams.delete('month');
+            }
+            window.location = baseUrl.toString();
+        });
+        
+        if (document.getElementById('monthInput')) {
+            document.getElementById('monthInput').addEventListener('change', updateFilters);
+        }
+        if (document.getElementById('semesterSelect')) {
+            document.getElementById('semesterSelect').addEventListener('change', updateFilters);
+        }
+    </script>
 
     <?php if ($selectedClass && !empty($students)): ?>
         <!-- Summary Statistics -->
@@ -365,7 +379,7 @@ if ($selectedClass) {
             </div>
         </div>
 
-    <?php elseif ($selectedClass): ?>
+    <?php elseif ($selectedClass && empty($students)): ?>
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
             No students enrolled in this class yet.

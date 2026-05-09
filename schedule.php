@@ -39,12 +39,24 @@ if ($classId > 0) {
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add_schedule') {
-        $classId = intval($_POST['class_id']);
+        $classId = intval($_POST['class_id'] ?? $_GET['class_id'] ?? 0);
         $teacherId = intval($_POST['teacher_id']);
         $subjectId = intval($_POST['subject_id']);
         $dayOfWeek = intval($_POST['day_of_week']);
         $periodId = intval($_POST['period_id']);
         $roomId = intval($_POST['room_id']) ?: null;
+
+        if ($classId <= 0) {
+            flash('error', 'Invalid class selected for schedule.');
+            redirect('schedule.php?action=view');
+        }
+
+        $stmt = $pdo->prepare('SELECT id FROM classes WHERE id = ?');
+        $stmt->execute([$classId]);
+        if (!$stmt->fetchColumn()) {
+            flash('error', 'Selected class does not exist.');
+            redirect('schedule.php?action=view');
+        }
 
         // Check for conflicts
         if ($scheduleService->hasConflict($teacherId, $dayOfWeek, $periodId, $classId)) {
@@ -82,6 +94,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $scheduleService->delete($scheduleId);
         flash('success', 'Schedule deleted successfully.');
         redirect("schedule.php?action=view&class_id=$classId");
+    } elseif ($action === 'add_period') {
+        $periodName = trim($_POST['period_name']);
+        $startTime = trim($_POST['start_time']);
+        $endTime = trim($_POST['end_time']);
+        $periodNumber = intval($_POST['period_number']);
+
+        if (empty($periodName) || empty($startTime) || empty($endTime)) {
+            flash('error', 'All fields are required.');
+            redirect('schedule.php?action=manage_periods');
+        }
+
+        try {
+            $pdo->prepare("INSERT INTO schedule_periods (period_name, start_time, end_time, period_number) VALUES (?, ?, ?, ?)")
+                ->execute([$periodName, $startTime, $endTime, $periodNumber]);
+            flash('success', 'Period added successfully.');
+        } catch (Exception $e) {
+            flash('error', 'Failed to add period: ' . $e->getMessage());
+        }
+        redirect('schedule.php?action=manage_periods');
+    } elseif ($action === 'update_period') {
+        $periodId = intval($_POST['period_id']);
+        $periodName = trim($_POST['period_name']);
+        $startTime = trim($_POST['start_time']);
+        $endTime = trim($_POST['end_time']);
+        $periodNumber = intval($_POST['period_number']);
+
+        if (empty($periodName) || empty($startTime) || empty($endTime)) {
+            flash('error', 'All fields are required.');
+            redirect('schedule.php?action=manage_periods');
+        }
+
+        try {
+            $pdo->prepare("UPDATE schedule_periods SET period_name = ?, start_time = ?, end_time = ?, period_number = ? WHERE id = ?")
+                ->execute([$periodName, $startTime, $endTime, $periodNumber, $periodId]);
+            flash('success', 'Period updated successfully.');
+        } catch (Exception $e) {
+            flash('error', 'Failed to update period: ' . $e->getMessage());
+        }
+        redirect('schedule.php?action=manage_periods');
+    } elseif ($action === 'delete_period') {
+        $periodId = intval($_POST['period_id']);
+
+        // Check if period is in use
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM teacher_schedules WHERE period_id = ?");
+        $stmt->execute([$periodId]);
+        if ($stmt->fetchColumn() > 0) {
+            flash('error', 'Cannot delete period that is currently assigned to schedules.');
+            redirect('schedule.php?action=manage_periods');
+        }
+
+        try {
+            $pdo->prepare("DELETE FROM schedule_periods WHERE id = ?")->execute([$periodId]);
+            flash('success', 'Period deleted successfully.');
+        } catch (Exception $e) {
+            flash('error', 'Failed to delete period: ' . $e->getMessage());
+        }
+        redirect('schedule.php?action=manage_periods');
     }
 }
 
@@ -117,6 +186,26 @@ $dayOfWeekNames = [
     </div>
     <?php endif; ?>
 
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="scheduleTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link <?= $action !== 'manage_periods' ? 'active' : '' ?>" id="class-schedules-tab" 
+               href="?action=view" role="tab">
+                <i class="fas fa-graduation-cap me-2"></i>Class Schedules
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link <?= $action === 'manage_periods' ? 'active' : '' ?>" id="manage-periods-tab" 
+               href="?action=manage_periods" role="tab">
+                <i class="fas fa-clock me-2"></i>Manage Periods
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="scheduleTabsContent">
+        <!-- Class Schedules Content -->
+        <div class="<?= $action !== 'manage_periods' ? '' : 'd-none' ?>" id="class-schedules">
+
     <div class="row">
         <!-- Sidebar: Class Selection -->
         <div class="col-lg-3 mb-4">
@@ -150,6 +239,7 @@ $dayOfWeekNames = [
                 </div>
                 <div class="card-body">
                     <form method="post" action="?action=add_schedule&class_id=<?= $classId ?>">
+                        <input type="hidden" name="class_id" value="<?= $classId ?>">
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Teacher <span class="text-danger">*</span></label>
@@ -184,7 +274,9 @@ $dayOfWeekNames = [
                                 <label class="form-label">Period <span class="text-danger">*</span></label>
                                 <select name="period_id" class="form-control" required>
                                     <option value="">-- Select Period --</option>
-                                    <?php foreach ($periods as $p): ?>
+                                    <?php foreach ($periods as $p): 
+                                        if (in_array($p['period_name'], ['Break', 'Lunch'])) continue;
+                                    ?>
                                     <option value="<?= $p['id'] ?>">
                                         <?= htmlspecialchars($p['period_name']) ?> (<?= $p['start_time'] ?> - <?= $p['end_time'] ?>)
                                     </option>
@@ -311,9 +403,7 @@ $dayOfWeekNames = [
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($periods as $period): 
-                                    if (in_array($period['period_name'], ['Break', 'Lunch'])) continue;
-                                ?>
+                                <?php foreach ($periods as $period): ?>
                                 <tr>
                                     <td><strong><?= htmlspecialchars($period['period_name']) ?></strong><br><small><?= $period['start_time'] ?> - <?= $period['end_time'] ?></small></td>
                                     <?php for ($day = 1; $day <= 5; $day++): 
@@ -329,6 +419,8 @@ $dayOfWeekNames = [
                                             <br><span class="badge bg-info"><?= htmlspecialchars($daySchedule['room_number']) ?></span>
                                             <?php endif; ?>
                                         </small>
+                                        <?php elseif (in_array($period['period_name'], ['Break', 'Lunch'])): ?>
+                                        <small><em><?= htmlspecialchars($period['period_name']) ?></em></small>
                                         <?php endif; ?>
                                     </td>
                                     <?php endfor; ?>
@@ -353,6 +445,151 @@ $dayOfWeekNames = [
             <?php endif; ?>
         </div>
     </div>
+        </div> <!-- End Class Schedules Content -->
+
+        <!-- Manage Periods Content -->
+        <div class="<?= $action === 'manage_periods' ? '' : 'd-none' ?>" id="manage-periods">
+            <div class="row">
+                <div class="col-12">
+                    <!-- Add Period Form -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus-circle me-2"></i>Add New Period
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" action="?action=add_period">
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Period Name <span class="text-danger">*</span></label>
+                                        <input type="text" name="period_name" class="form-control" required placeholder="e.g., Period 1, Break, Lunch">
+                                    </div>
+                                    <div class="col-md-2 mb-3">
+                                        <label class="form-label">Start Time <span class="text-danger">*</span></label>
+                                        <input type="time" name="start_time" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-2 mb-3">
+                                        <label class="form-label">End Time <span class="text-danger">*</span></label>
+                                        <input type="time" name="end_time" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-2 mb-3">
+                                        <label class="form-label">Order <span class="text-danger">*</span></label>
+                                        <input type="number" name="period_number" class="form-control" required min="1" placeholder="1, 2, 3...">
+                                    </div>
+                                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="fas fa-plus me-2"></i>Add Period
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Periods List -->
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clock me-2"></i>All Periods
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <?php if (!empty($periods)): ?>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Order</th>
+                                            <th>Period Name</th>
+                                            <th>Time</th>
+                                            <th>Duration</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($periods as $p): 
+                                            $start = strtotime($p['start_time']);
+                                            $end = strtotime($p['end_time']);
+                                            $duration = ($end - $start) / 60; // minutes
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($p['period_number']) ?></td>
+                                            <td>
+                                                <strong><?= htmlspecialchars($p['period_name']) ?></strong>
+                                            </td>
+                                            <td><?= htmlspecialchars($p['start_time']) ?> - <?= htmlspecialchars($p['end_time']) ?></td>
+                                            <td>
+                                                <?php if ($duration > 0): ?>
+                                                <span class="badge bg-info"><?= $duration ?> min</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editPeriodModal<?= $p['id'] ?>">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                                <form method="post" action="?action=delete_period" style="display:inline;">
+                                                    <input type="hidden" name="period_id" value="<?= $p['id'] ?>">
+                                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this period? This will only work if it\'s not assigned to any schedules.')">
+                                                        <i class="fas fa-trash"></i> Delete
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Edit Period Modal -->
+                                        <div class="modal fade" id="editPeriodModal<?= $p['id'] ?>" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form method="post" action="?action=update_period">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">Edit Period</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <input type="hidden" name="period_id" value="<?= $p['id'] ?>">
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Period Name</label>
+                                                                <input type="text" name="period_name" class="form-control" value="<?= htmlspecialchars($p['period_name']) ?>" required>
+                                                            </div>
+                                                            <div class="row">
+                                                                <div class="col-md-6 mb-3">
+                                                                    <label class="form-label">Start Time</label>
+                                                                    <input type="time" name="start_time" class="form-control" value="<?= htmlspecialchars($p['start_time']) ?>" required>
+                                                                </div>
+                                                                <div class="col-md-6 mb-3">
+                                                                    <label class="form-label">End Time</label>
+                                                                    <input type="time" name="end_time" class="form-control" value="<?= htmlspecialchars($p['end_time']) ?>" required>
+                                                                </div>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Order</label>
+                                                                <input type="number" name="period_number" class="form-control" value="<?= htmlspecialchars($p['period_number']) ?>" required min="1">
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <?php else: ?>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>No periods defined yet.
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- End Manage Periods Content -->
+    </div> <!-- End Tab Content -->
 </div>
 
 <?php include __DIR__ . '/inc/sidebar-footer.php'; ?>

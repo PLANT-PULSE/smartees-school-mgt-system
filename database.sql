@@ -99,6 +99,24 @@ CREATE TABLE IF NOT EXISTS class_fees (
   INDEX (class_id, is_active)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS lesson_notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  teacher_id INT NOT NULL,
+  class_id INT NOT NULL,
+  subject_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_size INT DEFAULT NULL,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+  FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+  INDEX (teacher_id, class_id, subject_id),
+  INDEX (uploaded_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS student_fees (
   id INT AUTO_INCREMENT PRIMARY KEY,
   student_id INT NOT NULL,
@@ -400,3 +418,130 @@ INSERT IGNORE INTO enrollment_records (student_id, class_id, enrollment_date, st
   (1, 1, '2026-01-15', 'active', '001'),
   (2, 1, '2026-01-20', 'active', '002'),
   (3, 2, '2026-01-18', 'active', '003');
+
+-- =================================================================
+-- SECURITY AUDIT TABLES
+-- =================================================================
+
+CREATE TABLE IF NOT EXISTS password_reset_audit (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_user_id INT NOT NULL,
+  reset_by_user_id INT NOT NULL,
+  reset_method ENUM('manual_set','temp_password') NOT NULL DEFAULT 'manual_set',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reset_by_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (target_user_id),
+  INDEX (reset_by_user_id),
+  INDEX (created_at)
+) ENGINE=InnoDB;
+
+-- =================================================================
+-- STUDENT PORTAL TABLES
+-- =================================================================
+
+CREATE TABLE IF NOT EXISTS student_announcements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  body TEXT NOT NULL,
+  class_id INT DEFAULT NULL,
+  created_by INT NOT NULL,
+  is_published BOOLEAN DEFAULT TRUE,
+  published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (class_id, published_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  event_date DATE NOT NULL,
+  class_id INT DEFAULT NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (event_date),
+  INDEX (class_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_assignments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  class_id INT NOT NULL,
+  subject_id INT DEFAULT NULL,
+  teacher_id INT DEFAULT NULL,
+  due_date DATETIME NOT NULL,
+  attachment_path VARCHAR(255) DEFAULT NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL,
+  FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (class_id, due_date)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_assignment_submissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  assignment_id INT NOT NULL,
+  student_id INT NOT NULL,
+  submission_text TEXT DEFAULT NULL,
+  file_path VARCHAR(255) DEFAULT NULL,
+  status ENUM('submitted','pending') NOT NULL DEFAULT 'submitted',
+  submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY u_assignment_student (assignment_id, student_id),
+  FOREIGN KEY (assignment_id) REFERENCES student_assignments(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  INDEX (submitted_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_resources (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  class_id INT DEFAULT NULL,
+  subject_id INT DEFAULT NULL,
+  file_path VARCHAR(255) DEFAULT NULL,
+  resource_url VARCHAR(255) DEFAULT NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+  FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (class_id, subject_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sender_user_id INT NOT NULL,
+  receiver_user_id INT NOT NULL,
+  subject VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (receiver_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX (receiver_user_id, is_read),
+  INDEX (created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS student_notification_preferences (
+  user_id INT PRIMARY KEY,
+  email_notifications BOOLEAN DEFAULT TRUE,
+  sms_notifications BOOLEAN DEFAULT FALSE,
+  in_app_notifications BOOLEAN DEFAULT TRUE,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Sample records for student portal
+INSERT IGNORE INTO student_announcements (id, title, body, class_id, created_by, is_published) VALUES
+  (1, 'Welcome to the Student Portal', 'Check your assignments, grades, attendance, and school updates regularly.', NULL, 1, TRUE);
+
+INSERT IGNORE INTO student_events (id, title, description, event_date, class_id, created_by) VALUES
+  (1, 'Mid-Term Exams Begin', 'Mid-term exam schedule starts this week. Review your timetable.', DATE_ADD(CURDATE(), INTERVAL 7 DAY), NULL, 1);
